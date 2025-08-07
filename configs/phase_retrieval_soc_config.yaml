@@ -12,6 +12,10 @@ measurement:
     name: phase_retrieval_soc
     oversample: 2.0
 
+  scale:
+    nonlinear: 0.8
+    nonlinear_finitegamma: 1
+
   noise: 
     name: gaussian
     sigma: 0.05

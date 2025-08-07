@@ -13,6 +13,11 @@ measurement:
     kernel_size: 61
     intensity: 0.5
 
+  scale:
+    linear: 0.7
+    nonlinear: 0.7
+    nonlinear_finitegamma: 1
+
   noise: 
     name: gaussian
     sigma: 0.05

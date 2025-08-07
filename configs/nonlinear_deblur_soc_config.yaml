@@ -12,6 +12,11 @@ measurement:
     name: nonlinear_blur_soc
     opt_yml_path: ./bkse/options/generate_blur/default.yml
 
+  scale:
+    linear: 0.7
+    nonlinear: 0.7
+    nonlinear_finitegamma: 1
+
   noise: 
     name: gaussian
     sigma: 0.05

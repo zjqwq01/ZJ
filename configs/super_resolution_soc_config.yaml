@@ -12,6 +12,11 @@ measurement:
     name: super_resolution_soc
     in_shape: !!python/tuple [1, 3, 256, 256]
     scale_factor: 4
+
+  scale:
+    linear: 0.7
+    nonlinear: 0.7
+    nonlinear_finitegamma: 1
   
   noise: 
     name: gaussian

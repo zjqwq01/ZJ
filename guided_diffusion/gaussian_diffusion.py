@@ -568,8 +568,6 @@ class SDESampler(SpacedDiffusion):
     def CG_Solve_nonlinear_infinitegamma_deltax(self, pred_xstart, y, operator, maxiter=100, tol = 1e-5):
         device = pred_xstart.device
         x0_for_grad = pred_xstart.detach().clone().requires_grad_()
-        # x0_t_hat = pred_xstart - operator.transpose(operator.forward(pred_xstart) - y)
-        # x0_t_hat = x0_t_hat.detach().clone().requires_grad_()
         Hx0 = operator.forward(x0_for_grad)
         residual = y - Hx0
 
@@ -636,18 +634,7 @@ class SDESampler(SpacedDiffusion):
                 create_graph=True
             )[0]
             return JTHv
-        # x = nn.Parameter(pred_xstart.clone())
-        # optimizer = Adam([x], lr=lr)
-        # for i in range(num_iterations):
-        #     optimizer.zero_grad()
-        #     Ax = apply_A(x)
-        #     residual = b_tensor - Ax
-        #     loss = torch.sum(residual ** 2)
-        #     loss.backward()
-        #     optimizer.step()
-        #     if (i + 1) == num_iterations:
-        #         print(f"Iteration {i+1}/{num_iterations}, Loss: {loss.item():.6f}")
-        # return x.data
+
         x = pred_xstart.clone()
         x_best = x.clone()
         residual_norm_best = float('inf')
@@ -669,11 +656,8 @@ class SDESampler(SpacedDiffusion):
                 # print(f"Iteration {i+1}/{num_iterations}, Residual Norm: {residual_norm.item():.6f}, LR: {lr}")
 
                 if lr < 1e-8:
-                    # print("Learning rate is too low. Stopping optimization.")
                     break
 
-            # if (i + 1) % 10 == 0:
-                # print(f"Iteration {i+1}/{num_iterations}, Residual Norm: {residual_norm.item():.6f}, LR: {lr}")
             x = x + lr * residual
 
         return x_best
@@ -783,7 +767,7 @@ class SDESampler(SpacedDiffusion):
             
             if measure_config['operator']['name'] in ['inpainting_soc','super_resolution_inpainting_soc']:
                 if measure_config['mask_opt']['mask_type'] == 'random':
-                    x0_t_hat = pred_xstart - operator.transpose(operator.forward(pred_xstart)) + operator.transpose(y) # operator.transpose(y)*mask + pred_xstart*(1-mask)
+                    x0_t_hat = pred_xstart - operator.transpose(operator.forward(pred_xstart)) + operator.transpose(y)
                 else:
                     x0_t_hat = pred_xstart - operator.transpose(operator.forward(pred_xstart)) + operator.transpose(y)*mask + pred_xstart*(1-mask)
                 cond_numerator = self.alpha_T_sde * self.x_start - x0_t_hat
@@ -791,48 +775,25 @@ class SDESampler(SpacedDiffusion):
                 x0_t_hat = pred_xstart - operator.transpose(operator.forward(pred_xstart)) + operator.transpose(y)
                 cond_numerator = self.alpha_T_sde * self.x_start - x0_t_hat
             cond_drift = g2_t * inv_alpha_t_sde * (cond_numerator / self.sde_denominator)
-            if measure_config['operator']['name'] == 'colorization_soc':
-                drift = uncond_drift + cond_drift * 0.7
-            elif measure_config['operator']['name'] == 'inpainting_soc' and measure_config['mask_opt']['mask_type'] == 'random':
-                drift = uncond_drift + cond_drift * 0.8
-            elif measure_config['operator']['name'] == 'inpainting_soc' and measure_config['mask_opt']['mask_type'] == 'box':
-                drift = uncond_drift + cond_drift * 0.6
-            elif measure_config['operator']['name'] == 'super_resolution_soc':
-                drift = uncond_drift + cond_drift * 0.7
-            elif measure_config['operator']['name'] == 'motion_blur_soc':
-                drift = uncond_drift + cond_drift * 0.7
-            elif measure_config['operator']['name'] == 'nonlinear_blur_soc':
-                drift = uncond_drift + cond_drift * 0.7
+
+            if measure_config['operator']['name'] == 'inpainting_soc':
+                mk_tp = measure_config['mask_opt']['mask_type']
+                drift = uncond_drift + cond_drift * measure_config['scale']['linear'][mk_tp]
             else:
-                drift = uncond_drift + cond_drift
+                drift = uncond_drift + cond_drift * measure_config['scale']['linear']
             
         elif solve_type == 'nonlinear':
-            if measure_config['operator']['name'] == 'phase_retrieval_soc':
-                # x0_t_hat = self.CG_Solve_nonlinear_infinitegamma_deltax(pred_xstart, y, operator, maxiter=500, tol = 1e-4)
-                x0_t_hat = self.Solve_with_MCMC(model, x, t, pred_xstart, operator, y)
-            elif measure_config['operator']['name'] == 'motion_blur_soc':
-                # x0_t_hat = self.CG_Solve_nonlinear_infinitegamma_deltax(pred_xstart, y, operator, maxiter=500, tol = 1e-3)
-                x0_t_hat = self.Solve_with_MCMC(model, x, t, pred_xstart, operator, y)
-            elif measure_config['operator']['name'] == 'super_resolution_inpainting_soc':
-                # x0_t_hat = self.CG_Solve_nonlinear_infinitegamma(pred_xstart, y, operator, maxiter=100, tol = 1e-5)
-                x0_t_hat = self.Solve_with_MCMC(model, x, t, pred_xstart, operator, y)
-            elif measure_config['operator']['name'] == 'nonlinear_blur_soc':
-                x0_t_hat = self.Solve_with_MCMC(model, x, t, pred_xstart, operator, y)
-                # x0_t_hat = self.CG_Solve_nonlinear_infinitegamma_deltax(pred_xstart, y, operator, maxiter=500, tol = 1e-1)
-            else:
-                # x0_t_hat = self.CG_Solve_nonlinear_infinitegamma(pred_xstart, y, operator, maxiter=100, tol = 1e-5)
-                x0_t_hat = self.Solve_with_MCMC(model, x, t, pred_xstart, operator, y)
-                # x0_t_hat = self.CG_Solve_nonlinear_infinitegamma_deltax(pred_xstart, y, operator, maxiter=200, tol = 1e-2)
-                # x0_t_hat = self.Solve_with_Gradient_Descent(pred_xstart, y, operator, num_iterations=50, lr=0.1)
+            x0_t_hat = self.Solve_with_MCMC(model, x, t, pred_xstart, operator, y)
             if measure_config['operator']['name'] in ['inpainting_soc']:
                 x0_t_hat = x0_t_hat*mask + pred_xstart*(1-mask)
                 noisy_H_dagger_y = self.q_sample(x_start=x0_t_hat, t=t)
                 x0_t_hat = self.p_mean_variance(model, noisy_H_dagger_y, t)['pred_xstart']
-                # noisy_H_dagger_y = self.q_sample(x_start=x0_t_hat*mask + pred_xstart*(1-mask), t=t)
-                # x0_t_hat = self.p_mean_variance(model, noisy_H_dagger_y, t)['pred_xstart']
             cond_numerator = self.alpha_T_sde * self.x_start - x0_t_hat
             cond_drift = g2_t * inv_alpha_t_sde * (cond_numerator / self.sde_denominator)
-            drift = uncond_drift + cond_drift * 0.7
+
+            t_float = t.float() if isinstance(t, torch.Tensor) else torch.tensor(t, dtype=torch.float32)
+            scale_coef = 0.2 + (1.0 - 0.2) * (1.0 - t_float / (self.num_timesteps - 1))
+            drift = uncond_drift + cond_drift * measure_config['scale']['nonlinear'] * scale_coef
             
 
         elif solve_type == 'nonlinear_finitegamma':
@@ -855,7 +816,7 @@ class SDESampler(SpacedDiffusion):
                 )
             e_factor = np.exp(-0.5 * (self.total_g2_integral - integral_value))
             cond_drift = -g2_t * e_factor * gamma * soc_term_solution
-            drift = uncond_drift + cond_drift
+            drift = uncond_drift + cond_drift * measure_config['scale']['nonlinear_finitegamma']
         
         
         # diffusion term

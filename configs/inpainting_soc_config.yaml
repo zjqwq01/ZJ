@@ -16,6 +16,16 @@ measurement:
     # mask_prob_range: !!python/tuple [0.3, 0.7]  # for random
     image_size: 256
 
+  scale:
+    linear:
+      box: 0.6
+      random: 0.8
+      nonlinear_finitegamma: 1
+    nonlinear:
+      box: 0.7
+      random: 0.8
+      nonlinear_finitegamma: 1
+
 
   noise:
     name: gaussian
